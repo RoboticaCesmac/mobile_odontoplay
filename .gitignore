@@ -33,9 +33,6 @@ docx_render_odontoplay/
 *.docx
 *.pdf
 
-# separate admin repository
-gerenciador/
-
 # macOS
 .DS_Store
 *.pem
