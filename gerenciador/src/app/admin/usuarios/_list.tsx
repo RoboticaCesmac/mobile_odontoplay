@@ -164,7 +164,7 @@ export default function UserList() {
 
             {userRemove && <AppModal title="Excluir cadastro">
                 <p>Deseja realmente remover o cadastro de {userRemove.nome}?</p>
-                <div className="flex justify-between p-[20px]">
+                <div className="flex justify-center gap-8 p-[20px]">
                     <AppButton title="Sim" icon="checkmark" form="round" color="#428f01" onClick={handleModalConfirm} />
                     <AppButton title="Cancelar" icon="close" color="tomato" form="round" onClick={() => setUserRemove(null)} />
                 </div>
