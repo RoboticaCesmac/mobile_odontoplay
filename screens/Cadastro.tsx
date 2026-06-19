@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   View,
   Text,
   TextInput,
@@ -7,6 +8,7 @@ import {
   Pressable,
   Image,
   ImageBackground,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
@@ -30,6 +32,7 @@ const FORM_TOP = height * 0.285;
 const LOGIN_BOTTOM = height * 0.16;
 const LOGIN_WIDTH = width * 0.6;
 const LOGIN_HEIGHT = 36;
+const PASSWORD_FOCUS_SHIFT = -Math.min(height * 0.2, 165);
 
 type Props = NativeStackScreenProps<RootStackParamList, "Cadastro">;
 
@@ -47,12 +50,34 @@ export default function CadastroScreen({ navigation }: Props) {
   const [generoModal, setGeneroModal] = useState(false);
   const [showSenhaSubmitError, setShowSenhaSubmitError] = useState(false);
   const { stopMusic } = useThemeMusic();
+  const screenShift = useRef(new Animated.Value(0)).current;
+  const passwordFocusedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       void stopMusic();
     }, [stopMusic])
   );
+
+  const animateScreenShift = useCallback(
+    (toValue: number) => {
+      Animated.timing(screenShift, {
+        toValue,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    },
+    [screenShift]
+  );
+
+  useEffect(() => {
+    const keyboardHideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      passwordFocusedRef.current = false;
+      animateScreenShift(0);
+    });
+
+    return () => keyboardHideSubscription.remove();
+  }, [animateScreenShift]);
 
   const formatBirthYear = (value: string): string => value.replace(/\D/g, "").slice(0, 4);
 
@@ -147,12 +172,31 @@ export default function CadastroScreen({ navigation }: Props) {
     }
   };
 
+  const handlePasswordFocus = () => {
+    passwordFocusedRef.current = true;
+    animateScreenShift(PASSWORD_FOCUS_SHIFT);
+  };
+
+  const handlePasswordBlur = () => {
+    passwordFocusedRef.current = false;
+    animateScreenShift(0);
+  };
+
   return (
-    <ImageBackground
-      source={require("../assets/cadastro/background_frutiger6.png")}
-      style={styles.background}
-      imageStyle={styles.bgImage}
-    >
+    <View style={styles.screen}>
+      <Animated.View
+        style={[
+          styles.shiftLayer,
+          {
+            transform: [{ translateY: screenShift }],
+          },
+        ]}
+      >
+        <ImageBackground
+          source={require("../assets/cadastro/background_frutiger6.png")}
+          style={styles.background}
+          imageStyle={styles.bgImage}
+        >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -351,6 +395,8 @@ export default function CadastroScreen({ navigation }: Props) {
                                 : "#999"
                             }
                             secureTextEntry={!showPassword}
+                            onFocus={handlePasswordFocus}
+                            onBlur={handlePasswordBlur}
                             onChangeText={(text) => {
                               setShowSenhaSubmitError(false);
                               handleChange("senha")(text);
@@ -402,6 +448,8 @@ export default function CadastroScreen({ navigation }: Props) {
                                 : "#999"
                             }
                             secureTextEntry={!showPassword}
+                            onFocus={handlePasswordFocus}
+                            onBlur={handlePasswordBlur}
                             onChangeText={(text) => {
                               setShowSenhaSubmitError(false);
                               handleChange("confirmaSenha")(text);
@@ -506,11 +554,24 @@ export default function CadastroScreen({ navigation }: Props) {
             
         </Pressable>
       </KeyboardAvoidingView>
-    </ImageBackground>
+        </ImageBackground>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    overflow: "hidden",
+  },
+
+  shiftLayer: {
+    flex: 1,
+    width,
+    height,
+  },
+
   background: {
     flex: 1,
     width,
