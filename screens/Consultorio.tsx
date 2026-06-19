@@ -162,6 +162,8 @@ const instrumentPracticeAudio = [
   require("../assets/audio/espelho.mp3"),
 ] as const;
 
+const INSTRUMENT_AUDIO_DELAY_MS = 700;
+
 const completionAudio = require("../assets/audio/parabens.mp3");
 
 const practiceTextsByInstrumentId: Record<string, string> = {
@@ -332,6 +334,7 @@ export default function ConsultorioScreen({ navigation }: Props) {
     const audioSource = instrumentPracticeAudio[lessonInstrumentIndex] ?? instrumentPracticeAudio[0];
     let isActive = true;
     let currentSound: Audio.Sound | null = null;
+    let audioDelay: ReturnType<typeof setTimeout> | null = null;
 
     const playPracticeAudio = async () => {
       try {
@@ -373,10 +376,16 @@ export default function ConsultorioScreen({ navigation }: Props) {
       }
     };
 
-    void playPracticeAudio();
+    audioDelay = setTimeout(() => {
+      void playPracticeAudio();
+    }, INSTRUMENT_AUDIO_DELAY_MS);
 
     return () => {
       isActive = false;
+
+      if (audioDelay) {
+        clearTimeout(audioDelay);
+      }
 
       if (currentSound) {
         void currentSound.unloadAsync();
