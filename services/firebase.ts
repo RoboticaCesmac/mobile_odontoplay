@@ -9,13 +9,13 @@ import {
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD2KpWxHjFuxLfjttvKwhqy90jzlwugfPs",
-  authDomain: "odontoplay-bb7fc.firebaseapp.com",
-  projectId: "odontoplay-bb7fc",
-  storageBucket: "odontoplay-bb7fc.firebasestorage.app",
-  messagingSenderId: "131213387213",
-  appId: "1:131213387213:web:1dfe348b0ac2737a41d084",
-  measurementId: "G-1RXNDBBVGZ",
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+  measurementId: "",
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

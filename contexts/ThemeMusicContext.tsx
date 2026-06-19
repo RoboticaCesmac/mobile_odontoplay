@@ -13,17 +13,13 @@ type ThemeMusicContextValue = {
   isPlaying: boolean;
   startMusic: () => Promise<void>;
   stopMusic: () => Promise<void>;
-  setMusicVolume: (volume: number) => Promise<void>;
   toggleMusic: () => Promise<void>;
 };
 
 const ThemeMusicContext = createContext<ThemeMusicContextValue | null>(null);
-export const THEME_MUSIC_VOLUME = 0.20;
-export const THEME_MUSIC_DUCKED_VOLUME = 0.05;
 
 export function ThemeMusicProvider({ children }: { children: ReactNode }) {
   const soundRef = useRef<Audio.Sound | null>(null);
-  const volumeRef = useRef(THEME_MUSIC_VOLUME);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const loadMusic = useCallback(async () => {
@@ -36,7 +32,7 @@ export function ThemeMusicProvider({ children }: { children: ReactNode }) {
       {
         isLooping: true,
         shouldPlay: false,
-        volume: volumeRef.current,
+        volume: 0.45,
       }
     );
 
@@ -69,23 +65,6 @@ export function ThemeMusicProvider({ children }: { children: ReactNode }) {
     }
 
     setIsPlaying(false);
-  }, []);
-
-  const setMusicVolume = useCallback(async (volume: number) => {
-    const nextVolume = Math.max(0, Math.min(1, volume));
-    volumeRef.current = nextVolume;
-
-    const sound = soundRef.current;
-
-    if (!sound) {
-      return;
-    }
-
-    const status = await sound.getStatusAsync();
-
-    if (status.isLoaded) {
-      await sound.setVolumeAsync(nextVolume);
-    }
   }, []);
 
   const toggleMusic = useCallback(async () => {
@@ -125,7 +104,6 @@ export function ThemeMusicProvider({ children }: { children: ReactNode }) {
         isPlaying,
         startMusic,
         stopMusic,
-        setMusicVolume,
         toggleMusic,
       }}
     >

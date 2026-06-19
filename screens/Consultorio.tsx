@@ -15,14 +15,8 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
 import { LinearGradient } from "expo-linear-gradient";
 import { RootStackParamList } from "../App";
-import {
-  THEME_MUSIC_DUCKED_VOLUME,
-  THEME_MUSIC_VOLUME,
-  useThemeMusic,
-} from "../contexts/ThemeMusicContext";
 import { preloadConsultorioImages } from "../services/imagePreload";
 import { saveGameProgress } from "../services/progress";
 
@@ -149,35 +143,13 @@ const girlPracticeImages = [
   require("../assets/jogo1/pratica-5-feminina.png"),
 ] as const;
 
-const characterIntroAudio = {
-  menino: require("../assets/audio/lucas.mp3"),
-  menina: require("../assets/audio/laura.mp3"),
-} as const;
-
-const instrumentPracticeAudio = [
-  require("../assets/audio/motor.mp3"),
-  require("../assets/audio/spray.mp3"),
-  require("../assets/audio/sugador.mp3"),
-  require("../assets/audio/explorador.mp3"),
-  require("../assets/audio/espelho.mp3"),
+const practiceTexts = [
+  "A dentista usa o motor para limpar os dentinhos com cuidado. Ele gira rapidinho, faz um barulhinho, mas não dói nada!",
+  "A dentista usa o spray ar/água para jogar um pouquinho de água ou ar. Assim a boca fica limpinha durante o atendimento!",
+  "O sugador ajuda a tirar a saliva da boca. Ele faz um barulhinho divertido e deixa tudo mais confortável!",
+  "O explorador ajuda a dentista a olhar cada cantinho dos dentinhos e descobrir onde precisa cuidar melhor.",
+  "O espelhinho ajuda a dentista a enxergar os dentinhos por todos os lados, até os cantinhos escondidos!",
 ] as const;
-
-const INSTRUMENT_AUDIO_DELAY_MS = 700;
-
-const completionAudio = require("../assets/audio/parabens.mp3");
-
-const practiceTextsByInstrumentId: Record<string, string> = {
-  "instrumento-1":
-    "A dentista usa o motor para limpar os dentinhos com cuidado. Ele gira rapidinho e faz um barulhinho, mas não dói nada!",
-  "instrumento-2":
-    "A dentista usa o spray para jogar um pouquinho de água ou ar. Assim a boca fica limpinha durante o atendimento!",
-  "instrumento-3":
-    "O sugador ajuda a tirar a saliva da boca. Ele faz um barulhinho divertido e deixa tudo mais confortável!",
-  "instrumento-4":
-    "O explorador ajuda a dentista a olhar cada cantinho dos dentinhos e descobrir onde precisa cuidar melhor.",
-  "instrumento-5":
-    "O espelhinho ajuda a dentista a enxergar os dentinhos por todos os lados, até os cantinhos escondidos!",
-};
 
 export default function ConsultorioScreen({ navigation }: Props) {
   const [selectedInstrumentId, setSelectedInstrumentId] = useState<string | null>(null);
@@ -190,37 +162,15 @@ export default function ConsultorioScreen({ navigation }: Props) {
   const [visitedInstrumentIds, setVisitedInstrumentIds] = useState<string[]>([]);
   const [lastRewardEarned, setLastRewardEarned] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
-  const { setMusicVolume } = useThemeMusic();
   const dentistProgress = useRef(new Animated.Value(0)).current;
   const instructionsProgress = useRef(new Animated.Value(1)).current;
   const initialDentistProgress = useRef(new Animated.Value(0)).current;
   const selectedInstrumentProgress = useRef(new Animated.Value(0)).current;
   const lessonCardScale = useRef(new Animated.Value(0.94)).current;
-  const introAudioRef = useRef<Audio.Sound | null>(null);
-  const introAudioDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const practiceAudioRef = useRef<Audio.Sound | null>(null);
-  const completionAudioRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     void preloadConsultorioImages().catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (introAudioDelayRef.current) {
-        clearTimeout(introAudioDelayRef.current);
-        introAudioDelayRef.current = null;
-      }
-
-      introAudioRef.current?.unloadAsync();
-      introAudioRef.current = null;
-      practiceAudioRef.current?.unloadAsync();
-      practiceAudioRef.current = null;
-      completionAudioRef.current?.unloadAsync();
-      completionAudioRef.current = null;
-      void setMusicVolume(THEME_MUSIC_VOLUME);
-    };
-  }, [setMusicVolume]);
 
   useFocusEffect(
     useCallback(() => {
@@ -324,148 +274,6 @@ export default function ConsultorioScreen({ navigation }: Props) {
     return index >= 0 ? index : 0;
   }, [instrumentos, lessonInstrument]);
 
-  useEffect(() => {
-    if (lessonStage !== "practice") {
-      practiceAudioRef.current?.unloadAsync();
-      practiceAudioRef.current = null;
-      return;
-    }
-
-    const audioSource = instrumentPracticeAudio[lessonInstrumentIndex] ?? instrumentPracticeAudio[0];
-    let isActive = true;
-    let currentSound: Audio.Sound | null = null;
-    let audioDelay: ReturnType<typeof setTimeout> | null = null;
-
-    const playPracticeAudio = async () => {
-      try {
-        if (practiceAudioRef.current) {
-          await practiceAudioRef.current.unloadAsync();
-          practiceAudioRef.current = null;
-        }
-
-        await setMusicVolume(THEME_MUSIC_DUCKED_VOLUME);
-
-        const { sound } = await Audio.Sound.createAsync(audioSource, {
-          shouldPlay: true,
-          volume: 1,
-        });
-
-        if (!isActive) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        currentSound = sound;
-        practiceAudioRef.current = sound;
-
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            void setMusicVolume(THEME_MUSIC_VOLUME);
-            void sound.unloadAsync();
-
-            if (practiceAudioRef.current === sound) {
-              practiceAudioRef.current = null;
-            }
-          }
-        });
-      } catch {
-        if (isActive) {
-          void setMusicVolume(THEME_MUSIC_VOLUME);
-        }
-        practiceAudioRef.current = null;
-      }
-    };
-
-    audioDelay = setTimeout(() => {
-      void playPracticeAudio();
-    }, INSTRUMENT_AUDIO_DELAY_MS);
-
-    return () => {
-      isActive = false;
-
-      if (audioDelay) {
-        clearTimeout(audioDelay);
-      }
-
-      if (currentSound) {
-        void currentSound.unloadAsync();
-      }
-
-      if (practiceAudioRef.current === currentSound) {
-        practiceAudioRef.current = null;
-      }
-
-      void setMusicVolume(THEME_MUSIC_VOLUME);
-    };
-  }, [lessonInstrumentIndex, lessonStage, setMusicVolume]);
-
-  useEffect(() => {
-    if (!showCompletion) {
-      completionAudioRef.current?.unloadAsync();
-      completionAudioRef.current = null;
-      return;
-    }
-
-    let isActive = true;
-    let currentSound: Audio.Sound | null = null;
-
-    const playCompletionAudio = async () => {
-      try {
-        if (completionAudioRef.current) {
-          await completionAudioRef.current.unloadAsync();
-          completionAudioRef.current = null;
-        }
-
-        await setMusicVolume(THEME_MUSIC_DUCKED_VOLUME);
-
-        const { sound } = await Audio.Sound.createAsync(completionAudio, {
-          shouldPlay: true,
-          volume: 1,
-        });
-
-        if (!isActive) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        currentSound = sound;
-        completionAudioRef.current = sound;
-
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            void setMusicVolume(THEME_MUSIC_VOLUME);
-            void sound.unloadAsync();
-
-            if (completionAudioRef.current === sound) {
-              completionAudioRef.current = null;
-            }
-          }
-        });
-      } catch {
-        if (isActive) {
-          void setMusicVolume(THEME_MUSIC_VOLUME);
-        }
-        completionAudioRef.current = null;
-      }
-    };
-
-    void playCompletionAudio();
-
-    return () => {
-      isActive = false;
-
-      if (currentSound) {
-        void currentSound.unloadAsync();
-      }
-
-      if (completionAudioRef.current === currentSound) {
-        completionAudioRef.current = null;
-      }
-
-      void setMusicVolume(THEME_MUSIC_VOLUME);
-    };
-  }, [setMusicVolume, showCompletion]);
-
   const instrumentOriginPositions = useMemo(
     () =>
       Object.fromEntries(
@@ -547,7 +355,7 @@ export default function ConsultorioScreen({ navigation }: Props) {
       ? require("../assets/jogo1/background_meninafeliz3.png")
       : require("../assets/jogo1/background_meninofeliz.png");
 
-  const childName = selectedCharacter === "menina" ? "Laura" : "Lucas";
+  const childName = selectedCharacter === "menina" ? "Mariana" : "Lucas";
   const isGirlCharacter = selectedCharacter === "menina";
   const greetingLead = selectedCharacter === "menina" ? "Essa é a" : "Este é o";
   const greetingText = `${greetingLead} ${childName}!`;
@@ -609,68 +417,7 @@ export default function ConsultorioScreen({ navigation }: Props) {
     }
   };
 
-  const playCharacterIntroAudio = async () => {
-    try {
-      if (introAudioRef.current) {
-        await introAudioRef.current.unloadAsync();
-        introAudioRef.current = null;
-      }
-
-      await setMusicVolume(THEME_MUSIC_DUCKED_VOLUME);
-
-      const { sound } = await Audio.Sound.createAsync(
-        characterIntroAudio[selectedCharacter],
-        {
-          shouldPlay: true,
-          volume: 1,
-        }
-      );
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          void setMusicVolume(THEME_MUSIC_VOLUME);
-          void sound.unloadAsync();
-
-          if (introAudioRef.current === sound) {
-            introAudioRef.current = null;
-          }
-        }
-      });
-
-      introAudioRef.current = sound;
-    } catch {
-      void setMusicVolume(THEME_MUSIC_VOLUME);
-      introAudioRef.current = null;
-    }
-  };
-
-  const stopCharacterIntroAudio = async () => {
-    if (introAudioDelayRef.current) {
-      clearTimeout(introAudioDelayRef.current);
-      introAudioDelayRef.current = null;
-    }
-
-    if (introAudioRef.current) {
-      await introAudioRef.current.unloadAsync();
-      introAudioRef.current = null;
-    }
-
-    await setMusicVolume(THEME_MUSIC_VOLUME);
-  };
-
-  const scheduleCharacterIntroAudio = () => {
-    if (introAudioDelayRef.current) {
-      clearTimeout(introAudioDelayRef.current);
-    }
-
-    introAudioDelayRef.current = setTimeout(() => {
-      introAudioDelayRef.current = null;
-      void playCharacterIntroAudio();
-    }, 800);
-  };
-
   const startGameplay = () => {
-    void stopCharacterIntroAudio();
     setShowInstructions(false);
     dentistProgress.setValue(0);
 
@@ -772,7 +519,6 @@ export default function ConsultorioScreen({ navigation }: Props) {
           pointerEvents="none"
           style={[
             styles.instrumentBubble,
-            shouldShowNextInstrumentBubble && styles.nextInstrumentBubble,
             {
               opacity: dentistProgress,
             },
@@ -780,17 +526,9 @@ export default function ConsultorioScreen({ navigation }: Props) {
         >
           <Image
             source={require("../assets/jogo1/balao.png")}
-            style={[
-              styles.instrumentBubbleImage,
-              shouldShowNextInstrumentBubble && styles.nextInstrumentBubbleImage,
-            ]}
+            style={styles.instrumentBubbleImage}
           />
-          <View
-            style={[
-              styles.instrumentBubbleTextBox,
-              shouldShowNextInstrumentBubble && styles.nextInstrumentBubbleTextBox,
-            ]}
-          >
+          <View style={styles.instrumentBubbleTextBox}>
             {shouldShowInitialInstrumentBubble ? (
               <Text style={styles.initialInstrumentBubbleText}>
                 <Text style={styles.instrumentBubbleTextHighlight}>Clique</Text>
@@ -801,10 +539,15 @@ export default function ConsultorioScreen({ navigation }: Props) {
                 <Text>{"\n"}como funciona cada{"\n"}instrumento!</Text>
               </Text>
             ) : (
-              <Text style={styles.nextInstrumentBubbleTitle}>
-                Que tal conhecer os{"\n"}
-                <Text style={styles.instrumentBubbleTextHighlight}>outros instrumentos?</Text>
-              </Text>
+              <>
+                <Text style={styles.nextInstrumentBubbleTitle}>
+                  Que tal conhecer os{"\n"}
+                  <Text style={styles.instrumentBubbleTextHighlight}>outros instrumentos?</Text>
+                </Text>
+                <Text style={styles.nextInstrumentBubbleText}>
+                  Clique em outro objeto{"\n"}para descobrir!
+                </Text>
+              </>
             )}
           </View>
         </Animated.View>
@@ -898,7 +641,7 @@ export default function ConsultorioScreen({ navigation }: Props) {
                 </View>
 
                 <Pressable
-                  style={[styles.lessonPrimaryButton, styles.lessonPracticeButton]}
+                  style={styles.lessonPrimaryButton}
                   onPress={() => setLessonStage("practice")}
                 >
                   <LinearGradient
@@ -943,11 +686,10 @@ export default function ConsultorioScreen({ navigation }: Props) {
                   source={currentPracticeImages[lessonInstrumentIndex] ?? currentPracticeImages[0]}
                   style={styles.practiceImage}
                 />
-                <View style={styles.practiceDescriptionCard}>
-                  <Text style={styles.practiceDescription}>
-                    {practiceTextsByInstrumentId[lessonInstrument.id]}
-                  </Text>
-                </View>
+                <Text style={styles.practiceDescription}>
+                  {practiceTexts[lessonInstrumentIndex] ?? practiceTexts[0]}
+                </Text>
+                <Text style={styles.practiceHeart}>{"\u2661"}</Text>
 
                 <Pressable
                   style={styles.lessonPrimaryButton}
@@ -961,12 +703,12 @@ export default function ConsultorioScreen({ navigation }: Props) {
                   >
                     <Ionicons
                       name="checkmark-circle"
-                      size={30}
+                      size={23}
                       color="#FFFFFF"
                       style={styles.lessonPrimaryButtonLeftIcon}
                     />
                     <View style={styles.lessonPrimaryButtonCopy}>
-                      <Text style={styles.lessonPrimaryButtonEntendiText}>Entendi!</Text>
+                      <Text style={styles.lessonPrimaryButtonText}>Entendi!</Text>
                     </View>
                     <Ionicons
                       name="chevron-forward"
@@ -1002,20 +744,7 @@ export default function ConsultorioScreen({ navigation }: Props) {
                 ) : null}
 
                 <Pressable style={styles.successButton} onPress={finishLessonCard}>
-                  <LinearGradient
-                    colors={["#5FD142", "#49BE31", "#2EA721"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.successButtonGradient}
-                  >
-                    <Text style={styles.successButtonText}>Continuar</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={25}
-                      color="#FFFFFF"
-                      style={styles.successButtonRightIcon}
-                    />
-                  </LinearGradient>
+                  <Text style={styles.successButtonText}>Continuar</Text>
                 </Pressable>
               </>
             )}
@@ -1094,8 +823,17 @@ export default function ConsultorioScreen({ navigation }: Props) {
                 end={{ x: 1, y: 1 }}
                 style={styles.instructionsInvite}
               >
-                <View style={styles.instructionsInviteIcon}>
-                  <Ionicons name="search-outline" size={24} color="#C9EBFF" />
+                <View
+                  style={[
+                    styles.instructionsInviteIcon,
+                    isGirlCharacter && styles.instructionsInviteIconGirl,
+                  ]}
+                >
+                  <Ionicons
+                    name="search-outline"
+                    size={24}
+                    color={isGirlCharacter ? "#FFD5E7" : "#C9EBFF"}
+                  />
                 </View>
                 <View style={styles.instructionsInviteCopy}>
                   <Text style={styles.instructionsPromptLine}>
@@ -1191,7 +929,6 @@ export default function ConsultorioScreen({ navigation }: Props) {
               onPress={() => {
                 setShowCharacterSelection(false);
                 setShowInstructions(true);
-                scheduleCharacterIntroAudio();
               }}
             >
               <LinearGradient
@@ -1494,11 +1231,19 @@ function CompletionScreen({
         <View style={styles.completionHeadlineBox}>
           <Text
             style={[
-              styles.completionHeadlineText,
+              styles.completionHeadlineLead,
+              isGirl && { color: "#EC6A9F" },
+            ]}
+          >
+            Você concluiu
+          </Text>
+          <Text
+            style={[
+              styles.completionHeadlineAccent,
               isGirl && { color: "#243B8F" },
             ]}
           >
-            Você concluiu todos os instrumentos!
+            todos os instrumentos!
           </Text>
         </View>
         <Text style={styles.completionSparkle}>✦</Text>
@@ -1564,8 +1309,7 @@ const styles = StyleSheet.create({
   },
   completionConfettiLayer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 9,
-    elevation: 9,
+    zIndex: 6,
   },
   completionConfettiPiece: {
     position: "absolute",
@@ -1596,12 +1340,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 18,
     right: 68,
-    top: 80,
+    top: 108,
     height: 222,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 8,
-    transform: [{ translateX: -10 }],
   },
   completionBubbleImage: {
     right: 0,
@@ -1615,7 +1358,7 @@ const styles = StyleSheet.create({
     display: "none",
   },
   completionTitleRow: {
-    marginTop: -30,
+    marginTop: -12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1633,25 +1376,36 @@ const styles = StyleSheet.create({
   },
   completionTitle: {
     color: "#E44D8C",
-  
-    fontSize: 30,
+    fontSize: 25,
+    lineHeight: 29,
     fontWeight: "900",
     textAlign: "center",
   },
   completionHeadlineBox: {
-    marginTop: 7,
+    marginTop: 8,
     alignItems: "center",
     justifyContent: "center",
-    width: 238,
+    maxWidth: 238,
   },
-  completionHeadlineText: {
-    marginTop: 0,
+  completionHeadlineLead: {
     color: "#112D91",
-    fontSize: 19,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "800",
     textAlign: "center",
-    letterSpacing: 0,
+    letterSpacing: 0.1,
+  },
+  completionHeadlineAccent: {
+    marginTop: 1,
+    color: "#112D91",
+    fontSize: 19,
+    lineHeight: 23,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: 0.15,
+    textShadowColor: "rgba(255, 211, 74, 0.34)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   completionSparkle: {
     display: "none",
@@ -1987,18 +1741,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  nextInstrumentBubble: {
-    height: 158,
-  },
   instrumentBubbleImage: {
     position: "absolute",
     width: 320,
     height: 200,
     resizeMode: "stretch",
     transform: [{ scaleX: -1 }],
-  },
-  nextInstrumentBubbleImage: {
-    height: 158,
   },
   instrumentBubbleTextBox: {
     width: 248,
@@ -2008,11 +1756,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  nextInstrumentBubbleTextBox: {
-    marginTop: -22,
-  },
   initialInstrumentBubbleText: {
-    marginTop: -5,
     fontFamily: "Nunito_800ExtraBold",
     color: "#374255",
     fontSize: 19,
@@ -2036,6 +1780,19 @@ const styles = StyleSheet.create({
     color: "#374255",
     fontSize: 20,
     lineHeight: 29,
+    fontWeight: "900",
+    textAlign: "center",
+    includeFontPadding: false,
+    textShadowColor: "rgba(255, 255, 255, 0.95)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  nextInstrumentBubbleText: {
+    marginTop: 6,
+    fontFamily: "Nunito_800ExtraBold",
+    color: "#374255",
+    fontSize: 17,
+    lineHeight: 24,
     fontWeight: "900",
     textAlign: "center",
     includeFontPadding: false,
@@ -2253,7 +2010,7 @@ const styles = StyleSheet.create({
   },
   lessonPrimaryButton: {
     width: "98%",
-    height: 64,
+    minHeight: 64,
     marginTop: 16,
     borderRadius: 23,
     alignItems: "center",
@@ -2263,12 +2020,9 @@ const styles = StyleSheet.create({
     elevation: 0,
     overflow: "hidden",
   },
-  lessonPracticeButton: {
-    width: "104%",
-  },
   lessonPrimaryButtonGradient: {
     width: "100%",
-    height: 64,
+    minHeight: 64,
     borderRadius: 23,
     borderWidth: 2,
     borderColor: "#A9C0FF",
@@ -2294,17 +2048,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 18,
     lineHeight: 23,
-    fontWeight: "900",
-    width: "100%",
-    textAlign: "center",
-    textShadowColor: "rgba(18, 18, 110, 0.45)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
-  },
-  lessonPrimaryButtonEntendiText: {
-    color: "#ffffff",
-    fontSize: 23,
-    lineHeight: 28,
     fontWeight: "900",
     width: "100%",
     textAlign: "center",
@@ -2351,37 +2094,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#D7E8FF",
   },
-  practiceDescriptionCard: {
-    width: "100%",
-    marginTop: 20,
-    minHeight: 104,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#C7E4FF",
-    backgroundColor: "#F5FBFF",
-    alignItems: "stretch",
-    justifyContent: "center",
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    shadowColor: "#1D61B8",
-    shadowOpacity: 0.09,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
   practiceDescription: {
-    width: "100%",
-    color: "#173D87",
-    fontSize: 18,
-    lineHeight: 22,
-    fontFamily: "Nunito_800ExtraBold",
-    fontWeight: "700",
+    marginTop: 20,
+    color: "#1E3A8A",
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: "500",
     textAlign: "center",
-    letterSpacing: 0.2,
-    includeFontPadding: false,
-    textShadowColor: "rgba(255, 255, 255, 0.95)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    fontStyle:"italic"
+  },
+  practiceHeart: {
+    position: "absolute",
+    right: 18,
+    bottom: 88,
+    color: "#F16DA4",
+    fontSize: 34,
+    fontWeight: "900",
   },
   successCheckCircle: {
     position: "absolute",
@@ -2414,9 +2142,9 @@ const styles = StyleSheet.create({
   successDescription: {
     marginTop: 10,
     color: "#1E3A8A",
-    fontSize: 19,
-    lineHeight: 25,
-    fontWeight: "600",
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: "700",
     textAlign: "center",
   },
   successInstrumentImage: {
@@ -2454,45 +2182,23 @@ const styles = StyleSheet.create({
   },
   successButton: {
     width: "94%",
-    height: 62,
+    height: 58,
     marginTop: 18,
-    borderRadius: 23,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1F7F18",
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    elevation: 8,
-    overflow: "hidden",
-  },
-  successButtonGradient: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 23,
+    borderRadius: 18,
+    backgroundColor: "#6BC449",
     borderWidth: 2,
-    borderColor: "rgba(219, 255, 172, 0.95)",
-    flexDirection: "row",
+    borderColor: "#4E9F37",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 34,
-    position: "relative",
+    shadowColor: "#2F7D22",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   successButtonText: {
     color: "#FFFFFF",
-    fontSize: 22,
-    lineHeight: 27,
+    fontSize: 19,
     fontWeight: "900",
-    width: "100%",
-    textAlign: "center",
-    transform: [{ translateX: -9 }],
-    textShadowColor: "rgba(28, 94, 16, 0.45)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
-  },
-  successButtonRightIcon: {
-    position: "absolute",
-    right: 17,
   },
   instructionsLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -2662,13 +2368,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   instructionsInviteIcon: {
-    width: 35,
-    height: 35,
-    borderRadius: 20,
-    borderWidth: 1,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
     borderColor: "#B6EEFF",
+    backgroundColor: "rgba(55, 176, 238, 0.66)",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#64D9FF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.34,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  instructionsInviteIconGirl: {
+    borderColor: "#FFD5E7",
+    backgroundColor: "rgba(232, 123, 179, 0.2)",
   },
   instructionsInviteCopy: {
     flex: 1,
