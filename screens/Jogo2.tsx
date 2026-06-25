@@ -17,6 +17,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { RootStackParamList } from "../App";
+import { preloadJogo2Images } from "../services/imagePreload";
 import {
   CharacterOption,
   defaultPreferences,
@@ -115,11 +116,16 @@ export default function Jogo2Screen({ navigation }: Props) {
     useState<UserPreferences>(defaultPreferences);
   const [brushHasPaste, setBrushHasPaste] = useState(false);
   const [lastSavedFinalKey, setLastSavedFinalKey] = useState("");
+  const [isDraggingItem, setIsDraggingItem] = useState(false);
   const foamOpacity = useRef(new Animated.Value(0)).current;
   const cleanOpacity = useRef(new Animated.Value(0)).current;
   const sparkleOpacity = useRef(new Animated.Value(0)).current;
   const sparkleScale = useRef(new Animated.Value(0.82)).current;
   const mouthStateRef = useRef<MouthState>("dirty");
+
+  useEffect(() => {
+    void preloadJogo2Images().catch(() => undefined);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -222,7 +228,24 @@ export default function Jogo2Screen({ navigation }: Props) {
   const hasCompletedCorrectSequence = (steps: GameStep[]) =>
     mistakes === 0 && steps.length === expectedOrder.length;
 
+  const resetGameplayState = () => {
+    setMouthState("dirty");
+    mouthStateRef.current = "dirty";
+    setCompletedSteps([]);
+    setMistakes(0);
+    setActiveRub(false);
+    setShowFinal(false);
+    setBrushHasPaste(false);
+    setIsDraggingItem(false);
+    setLastSavedFinalKey("");
+    foamOpacity.setValue(0);
+    cleanOpacity.setValue(0);
+    sparkleOpacity.setValue(0);
+    sparkleScale.setValue(0.82);
+  };
+
   const selectCharacter = (personagemJogo2: CharacterOption) => {
+    resetGameplayState();
     setPreferences((currentPreferences) => ({
       ...currentPreferences,
       personagemJogo2,
@@ -230,6 +253,7 @@ export default function Jogo2Screen({ navigation }: Props) {
   };
 
   const confirmCharacterSelection = async () => {
+    resetGameplayState();
     await saveUserPreferences(preferences);
     setShowCharacterSelection(false);
   };
@@ -475,7 +499,7 @@ export default function Jogo2Screen({ navigation }: Props) {
 
       <ImageBackground
         source={require("../assets/shared/rectangle-2.png")}
-        style={styles.itemsPanel}
+        style={[styles.itemsPanel, isDraggingItem && styles.itemsPanelDragging]}
         imageStyle={styles.itemsPanelImage}
       >
         <View style={styles.itemsRow}>
@@ -489,6 +513,7 @@ export default function Jogo2Screen({ navigation }: Props) {
               onComplete={handleStepComplete}
               onPastaOnMouth={handlePastaOnMouth}
               onPrepareBrush={handlePrepareBrush}
+              onDragChange={setIsDraggingItem}
             />
           ))}
         </View>
@@ -517,10 +542,6 @@ export default function Jogo2Screen({ navigation }: Props) {
                 Bem-vindo(a) ao{"\n"}Desafio do Sorriso!
               </Text>
             </View>
-
-            <Text style={styles.instructionsIntro}>
-              Siga os passos e ajude a manter o sorriso saudável.
-            </Text>
 
             <Text style={styles.instructionsBadge}>Como jogar</Text>
 
@@ -729,6 +750,7 @@ function DraggableItem({
   onRubActive,
   onPastaOnMouth,
   onPrepareBrush,
+  onDragChange,
   brushHasPaste,
 }: {
   item: ItemConfig;
@@ -737,6 +759,7 @@ function DraggableItem({
   onRubActive: (active: boolean) => void;
   onPastaOnMouth: () => void;
   onPrepareBrush: () => void;
+  onDragChange: (active: boolean) => void;
   brushHasPaste: boolean;
 }) {
   const pan = useRef(new Animated.ValueXY()).current;
@@ -748,6 +771,7 @@ function DraggableItem({
   const onRubActiveRef = useRef(onRubActive);
   const onPastaOnMouthRef = useRef(onPastaOnMouth);
   const onPrepareBrushRef = useRef(onPrepareBrush);
+  const onDragChangeRef = useRef(onDragChange);
 
   useEffect(() => {
     brushHasPasteRef.current = brushHasPaste;
@@ -755,7 +779,8 @@ function DraggableItem({
     onRubActiveRef.current = onRubActive;
     onPastaOnMouthRef.current = onPastaOnMouth;
     onPrepareBrushRef.current = onPrepareBrush;
-  }, [brushHasPaste, onComplete, onRubActive, onPastaOnMouth, onPrepareBrush]);
+    onDragChangeRef.current = onDragChange;
+  }, [brushHasPaste, onComplete, onRubActive, onPastaOnMouth, onPrepareBrush, onDragChange]);
 
   const isInsideMouth = (x: number, y: number) =>
     x >= MOUTH_HITBOX.x &&
@@ -787,6 +812,7 @@ function DraggableItem({
         lastPoint.current = null;
         gestureCompleted.current = false;
         onRubActiveRef.current(false);
+        onDragChangeRef.current(true);
       },
       onPanResponderMove: (_, gestureState) => {
         pan.setValue({ x: gestureState.dx, y: gestureState.dy });
@@ -830,6 +856,7 @@ function DraggableItem({
       onPanResponderRelease: (_, gestureState) => {
         lastPoint.current = null;
         onRubActiveRef.current(false);
+        onDragChangeRef.current(false);
 
         if (
           item.id === "pasta" &&
@@ -845,6 +872,7 @@ function DraggableItem({
       onPanResponderTerminate: () => {
         lastPoint.current = null;
         onRubActiveRef.current(false);
+        onDragChangeRef.current(false);
         resetPosition();
       },
     })
@@ -1046,6 +1074,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  itemsPanelDragging: {
+    zIndex: 60,
+    elevation: 60,
+  },
+
   itemsPanelImage: {
     resizeMode: "stretch",
   },
@@ -1206,7 +1239,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: "rgba(250, 254, 255, 0.98)",
     borderWidth: 2,
-    borderColor: "rgba(126, 207, 250, 0.72)",
+    borderColor: "#64B5F6",
     paddingHorizontal: 16,
     paddingVertical: 22,
     alignItems: "center",
@@ -1371,7 +1404,7 @@ const styles = StyleSheet.create({
 
   characterSelectionReady: {
     fontFamily: "Nunito_800ExtraBold",
-    marginTop: 25,
+    marginTop: 30,
     color: "#1D4E91",
     fontSize: 17,
     fontWeight: "900",
@@ -1454,11 +1487,12 @@ const styles = StyleSheet.create({
   },
 
   instructionsHeader: {
+    marginTop: 5,
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 9,
+    gap: 3,
   },
 
   instructionsToothIconSlot: {
@@ -1479,8 +1513,8 @@ const styles = StyleSheet.create({
   instructionsTitle: {
     fontFamily: "Nunito_800ExtraBold",
     color: "#2F64B1",
-    fontSize: 21,
-    lineHeight: 26,
+    fontSize: 23,
+    lineHeight: 30,
     fontWeight: "900",
     textAlign: "left",
   },
@@ -1498,7 +1532,7 @@ const styles = StyleSheet.create({
 
   instructionsBadge: {
     fontFamily: "Nunito_800ExtraBold",
-    marginTop: 13,
+    marginTop: 25,
     minWidth: 160,
     borderRadius: 24,
     backgroundColor: "#3498DB",
@@ -1520,11 +1554,11 @@ const styles = StyleSheet.create({
     borderColor: "#D7F0FF",
     paddingHorizontal: 12,
     paddingTop: 14,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
 
   instructionsStep: {
-    minHeight: 56,
+    minHeight: 60,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
@@ -1592,11 +1626,15 @@ const styles = StyleSheet.create({
 
   instructionsReady: {
     fontFamily: "Nunito_800ExtraBold",
-    marginTop: 11,
-    color: "#243B63",
+    marginTop: 21,
+    color: "#1D4E91",
     fontSize: 17,
     fontWeight: "900",
     textAlign: "center",
+    letterSpacing: 0.15,
+    textShadowColor: "rgba(186, 234, 255, 0.25)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
 
   instructionsButton: {

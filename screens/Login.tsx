@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   View,
   Text,
   TextInput,
@@ -7,6 +8,7 @@ import {
   Pressable,
   Image,
   ImageBackground,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
@@ -29,18 +31,41 @@ const FORM_TOP = height * 0.51;
 const REGISTER_TOP = height * 0.78;
 const REGISTER_WIDTH = width * 0.68;
 const DEMO_TOP = height * 0.87;
+const PASSWORD_FOCUS_SHIFT = -Math.min(height * 0.18, 145);
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
 export default function LoginScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const { stopMusic } = useThemeMusic();
+  const screenShift = useRef(new Animated.Value(0)).current;
+  const passwordFocusedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       void stopMusic();
     }, [stopMusic])
   );
+
+  const animateScreenShift = useCallback(
+    (toValue: number) => {
+      Animated.timing(screenShift, {
+        toValue,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    },
+    [screenShift]
+  );
+
+  useEffect(() => {
+    const keyboardHideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      passwordFocusedRef.current = false;
+      animateScreenShift(0);
+    });
+
+    return () => keyboardHideSubscription.remove();
+  }, [animateScreenShift]);
 
   const loginSchema = Yup.object().shape({
     email: Yup.string().email("Email inválido").required("Email obrigatório"),
@@ -65,12 +90,31 @@ export default function LoginScreen({ navigation }: Props) {
     }
   };
 
+  const handlePasswordFocus = () => {
+    passwordFocusedRef.current = true;
+    animateScreenShift(PASSWORD_FOCUS_SHIFT);
+  };
+
+  const handlePasswordBlur = () => {
+    passwordFocusedRef.current = false;
+    animateScreenShift(0);
+  };
+
   return (
-    <ImageBackground
-      source={require("../assets/login/background_login6.png")}
-      style={styles.background}
-      imageStyle={styles.bgImage}
-    >
+    <View style={styles.screen}>
+      <Animated.View
+        style={[
+          styles.shiftLayer,
+          {
+            transform: [{ translateY: screenShift }],
+          },
+        ]}
+      >
+        <ImageBackground
+          source={require("../assets/login/background_login6.png")}
+          style={styles.background}
+          imageStyle={styles.bgImage}
+        >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.container}
@@ -131,6 +175,8 @@ export default function LoginScreen({ navigation }: Props) {
                         : "Digite sua senha"
                     }
                     secureTextEntry={!showPassword}
+                    onFocus={handlePasswordFocus}
+                    onBlur={handlePasswordBlur}
                     placeholderTextColor={
                       touched.password && errors.password ? "#E74C3C" : "#999"
                     }
@@ -200,11 +246,24 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
         </Pressable>
       </KeyboardAvoidingView>
-    </ImageBackground>
+        </ImageBackground>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    overflow: "hidden",
+  },
+
+  shiftLayer: {
+    flex: 1,
+    width,
+    height,
+  },
+
   background: {
     flex: 1,
     width,
